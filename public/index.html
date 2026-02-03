@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chat App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+    
+    <header class="top-bar">
+      <h2>Chattingg Appp !</h2>
+      <button id="theme" title="Toggle theme">🌙</button>
+    </header>
+
+  
+    <div class="controls">
+      <select id="room">
+        <option value="general">General</option>
+        <option value="tech">Tech</option>
+      </select>
+    </div>
+
+    <div id="messages" class="messages"></div>
+
+
+    <div class="input-box">
+      <textarea
+        id="msg"
+        placeholder="Type a message..."
+      ></textarea>
+      <button id="send">Send</button>
+    </div>
+  </div>
+
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "/login.html";
+    }
+
+ 
+    const socket = io({
+      auth: { token }
+    });
+
+    const roomSelect = document.getElementById("room");
+    const messagesDiv = document.getElementById("messages");
+    const msgInput = document.getElementById("msg");
+    const sendBtn = document.getElementById("send");
+    const themeBtn = document.getElementById("theme");
+
+    socket.emit("join-room", roomSelect.value);
+
+    roomSelect.addEventListener("change", () => {
+      messagesDiv.innerHTML = "";
+      socket.emit("join-room", roomSelect.value);
+    });
+
+    function sendMessage() {
+      const text = msgInput.value.trim();
+      if (!text) return;
+
+      const id = Date.now();
+
+      socket.emit("chat-message", { text, id });
+      addMessage(`You: ${text}`, "you");
+
+      msgInput.value = "";
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+
+    msgInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    socket.on("chat-message", (data) => {
+      addMessage(`${data.user}: ${data.text}`, "other");
+      socket.emit("read", data.id);
+
+      if (Notification.permission === "granted") {
+        new Notification("New message", {
+          body: `${data.user}: ${data.text}`
+        });
+      }
+    });
+
+    socket.on("system", (msg) => {
+      addMessage(msg, "system");
+    });
+
+    socket.on("delivered", () => {
+      const small = document.createElement("small");
+      small.innerText = "Delivered ✔✔";
+      messagesDiv.appendChild(small);
+    });
+
+    function addMessage(text, type) {
+      const p = document.createElement("p");
+      p.innerText = text;
+      p.className = type;
+      messagesDiv.appendChild(p);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    themeBtn.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      localStorage.setItem("theme", document.body.className);
+    });
+
+    document.body.className = localStorage.getItem("theme") || "";
+
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+  </script>
+
+</body>
+</html>
